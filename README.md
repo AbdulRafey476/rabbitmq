@@ -40,11 +40,11 @@
 * http://54.166.223.25:15672/
 
 ### Apis ###
-* http://54.166.223.25:2652/api/post_billpay - Create Transaction
+* (POST) http://54.166.223.25:2652/api/post_billpay - Create Transaction
     - errorCode: 000 OR 666
 
-* http://54.166.223.25:2652/api/post_billpay?trackingId=1 - Retry Transaction
+* (POST) http://54.166.223.25:2652/api/post_billpay?trackingId=1 - Retry Transaction
     - errorCode: 000 OR 666
     - cronjob: true OR false
 
-* http://54.166.223.25:2652/api/post_process_billpay - Cron job on Rabbit Mq Queues
+* (POST) http://54.166.223.25:2652/api/post_process_billpay - Cron job on Rabbit Mq Queues
