@@ -30,7 +30,6 @@ module.exports = async (req, res) => {
   return res.status(200).json({ success: true, message: "Hit api" });
 };
 
-
 const getRandomInt = (max) => {
   return Math.floor(Math.random() * Math.floor(max));
 };

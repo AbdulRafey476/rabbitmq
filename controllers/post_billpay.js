@@ -31,23 +31,29 @@ module.exports = async (req, res) => {
         let retryCount = result[0].retryCount + 1;
         let cronRetryCount = result[0].cronRetryCount + 1;
 
-        if (cronjob && cronRetryCount > cronRetryAllowed) return res.status(401).json({ success: false, message: "Cronjob Retry limit exceed" });
-
-        if (!cronjob && retryCount > retryAllowed) return res.status(401).json({ success: false, message: "Retry limit exceed" });
-
-
         if (cronjob) {
-          add_retry_log(trackingId, ((errorCode == "666") ? false : true), cronRetryCount);
-          retry_queue(trackingId, errorCode, errorDes, cronRetryAllowed, cronRetryCount, status);
+
+          // if (cronjob && cronRetryCount > cronRetryAllowed) return res.status(401).json({ success: false, message: "Cronjob Retry limit exceed" });
 
           let query = `UPDATE Tbl_bill_pay SET errorCode = ${errorCode}, errorDes = '${errorDes}', cronRetryAllowed = ${cronRetryAllowed}, cronRetryCount = ${cronRetryCount}, status = '${status}' WHERE trackingId=${trackingId}`;
           connect.query(query, response(res, trackingId, errorCode));
+
+          setTimeout(() => {
+            add_retry_log(trackingId, ((errorCode == "666") ? false : true), cronRetryCount, "true");
+            retry_queue(trackingId, errorCode, errorDes, cronRetryAllowed, cronRetryCount, status, "true");  
+          }, 500);
         } else {
-          add_retry_log(trackingId, ((errorCode == "666") ? false : true), retryCount);
-          retry_queue(trackingId, errorCode, errorDes, retryAllowed, retryCount, status);
+
+          if (retryCount > retryAllowed) return res.status(401).json({ success: false, message: "Retry limit exceed" });
+
 
           let query = `UPDATE Tbl_bill_pay SET errorCode = ${errorCode}, errorDes = '${errorDes}', retryAllowed = ${retryAllowed}, retryCount = ${retryCount}, status = '${status}' WHERE trackingId=${trackingId}`;
           connect.query(query, response(res, trackingId, errorCode));
+
+          setTimeout(() => {
+            add_retry_log(trackingId, ((errorCode == "666") ? false : true), retryCount, "false");
+            retry_queue(trackingId, errorCode, errorDes, retryAllowed, retryCount, status, "false");  
+          }, 500);
         }
       }
     });
@@ -68,7 +74,7 @@ const response = (res, trackingId, errorCode) => {
   };
 };
 
-const retry_queue = (trackingId, errorCode, errorDes, retryAllowed, retryCount, status) => {
+const retry_queue = (trackingId, errorCode, errorDes, retryAllowed, retryCount, status, cronjob) => {
 
   amqp.connect("amqp://localhost", function (error0, connection) {
 
@@ -79,19 +85,19 @@ const retry_queue = (trackingId, errorCode, errorDes, retryAllowed, retryCount, 
       if (error1) throw error1;
 
       var queue = "Retry_Queue";
-      var msg = { trackingId, errorCode, errorDes, retryAllowed, retryCount, status };
+      var msg = { trackingId, errorCode, errorDes, retryAllowed, retryCount, status, cronjob };
 
       channel.assertQueue(queue, { durable: false });
       channel.sendToQueue(queue, Buffer.from(JSON.stringify(msg)));
       console.log(" [x] Sent %s", JSON.stringify(msg));
     });
 
-    setTimeout(() => connection.close(), 500);
+    setTimeout(() => process.exit(0), 500);
   });
 }
 
-const add_retry_log = (trackingId, success, retryTime) => {
-  connect.query(`INSERT INTO Tbl_retry_log (trackingId, success, retryTime) VALUES (${trackingId}, '${success}', ${retryTime})`, (error, result, fields) => {
+const add_retry_log = (trackingId, success, retryTime, cronjob) => {
+  connect.query(`INSERT INTO Tbl_retry_log (trackingId, success, retryTime, cronjob) VALUES (${trackingId}, '${success}', ${retryTime}, '${cronjob}')`, (error, result, fields) => {
     if (error) {
       console.log("ADD_RETRY_LOG ERROR" + error);
     } else {
@@ -99,3 +105,6 @@ const add_retry_log = (trackingId, success, retryTime) => {
     }
   })
 };
+
+
+
