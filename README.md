@@ -2,7 +2,7 @@
 
 Please create .env file with these variables below
 
-BASE_URL = http://localhost:8383/
+BASE_URL = http://localhost:2652/
 
 
 PORT = 2652

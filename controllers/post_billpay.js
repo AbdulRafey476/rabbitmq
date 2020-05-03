@@ -11,8 +11,9 @@ module.exports = async (req, res) => {
 
   let errorDes = (errorCode == "666") ? "Failure" : "Success";
   let retryAllowed = 3;
-  let cronRetryAllowed = 4;
+  let cronRetryAllowed = 3;
   let retryCount = 0;
+  let cronRetryCount = 0;
   let status = (errorCode == "666") ? "P" : "C";
   
 
@@ -25,28 +26,33 @@ module.exports = async (req, res) => {
         return res.status(500).json({ success: false, message: error.sqlMessage });
       } else {
         if (!result.length) return res.status(404).json({ success: false, message: "No transaction found" });
-        if (!result[0].errorCode) return res.status(400).json({ success: true, message: "Transaction already completed" });
+        if (!result[0].errorCode) return res.status(200).json({ success: true, message: "Transaction already completed" });
 
         let retryCount = result[0].retryCount + 1;
+        let cronRetryCount = result[0].cronRetryCount + 1;
 
-        if (cronjob && retryCount > cronRetryAllowed) return res.status(401).json({ success: false, message: "Cronjob Retry limit exceed" });
+        if (cronjob && cronRetryCount > cronRetryAllowed) return res.status(401).json({ success: false, message: "Cronjob Retry limit exceed" });
 
         if (!cronjob && retryCount > retryAllowed) return res.status(401).json({ success: false, message: "Retry limit exceed" });
 
-        if (cronjob && retryCount >= cronRetryAllowed) {
-          let query1 = `UPDATE Tbl_bill_pay SET errorCode = ${errorCode}, errorDes = '${errorDes}', retryAllowed = ${retryAllowed}, retryCount = ${retryCount}, status = '${status}' WHERE trackingId=${trackingId}`;
-          connect.query(query1, response(res, trackingId, errorCode));
+
+        if (cronjob) {
+          add_retry_log(trackingId, ((errorCode == "666") ? false : true), cronRetryCount);
+          retry_queue(trackingId, errorCode, errorDes, cronRetryAllowed, cronRetryCount, status);
+
+          let query = `UPDATE Tbl_bill_pay SET errorCode = ${errorCode}, errorDes = '${errorDes}', cronRetryAllowed = ${cronRetryAllowed}, cronRetryCount = ${cronRetryCount}, status = '${status}' WHERE trackingId=${trackingId}`;
+          connect.query(query, response(res, trackingId, errorCode));
         } else {
           add_retry_log(trackingId, ((errorCode == "666") ? false : true), retryCount);
           retry_queue(trackingId, errorCode, errorDes, retryAllowed, retryCount, status);
 
-          let query1 = `UPDATE Tbl_bill_pay SET errorCode = ${errorCode}, errorDes = '${errorDes}', retryAllowed = ${retryAllowed}, retryCount = ${retryCount}, status = '${status}' WHERE trackingId=${trackingId}`;
-          connect.query(query1, response(res, trackingId, errorCode));
+          let query = `UPDATE Tbl_bill_pay SET errorCode = ${errorCode}, errorDes = '${errorDes}', retryAllowed = ${retryAllowed}, retryCount = ${retryCount}, status = '${status}' WHERE trackingId=${trackingId}`;
+          connect.query(query, response(res, trackingId, errorCode));
         }
       }
     });
   } else {
-    let query = `INSERT INTO Tbl_bill_pay (errorCode, errorDes, retryAllowed, retryCount, status) VALUES (${errorCode}, '${errorDes}', ${retryAllowed}, ${retryCount}, '${status}')`;
+    let query = `INSERT INTO Tbl_bill_pay (errorCode, errorDes, retryAllowed, retryCount, cronRetryAllowed, cronRetryCount, status) VALUES (${errorCode}, '${errorDes}', ${retryAllowed}, ${retryCount}, ${cronRetryAllowed}, ${cronRetryCount}, '${status}')`;
     connect.query(query, response(res, 0, errorCode));
   }
 };

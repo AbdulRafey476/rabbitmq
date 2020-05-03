@@ -3,6 +3,9 @@ const request = require('request');
 const baseurl = process.env.BASE_URL
 
 module.exports = async (req, res) => {
+
+  const errCode = [666, 000];
+
   amqp.connect("amqp://localhost", function (error0, connection) {
     if (error0) throw error0;
 
@@ -17,7 +20,7 @@ module.exports = async (req, res) => {
 
       channel.consume(queue, function (msg) {
         let trackingId = JSON.parse(msg.content.toString()).trackingId;
-        request.post(`${baseurl}api/post_billpay?trackingId=${trackingId}`, { form:{ errorCode:666, cronjob: true }}, (err,httpResponse,body) => { 
+        request.post(`${baseurl}api/post_billpay?trackingId=${trackingId}`, { form:{ errorCode:errCode[getRandomInt(2)], cronjob: true }}, (err, httpResponse, body) => { 
           console.log(body);
         });
       }, { noAck: true });
@@ -25,4 +28,9 @@ module.exports = async (req, res) => {
   });
 
   return res.status(200).json({ success: true, message: "Hit api" });
+};
+
+
+const getRandomInt = (max) => {
+  return Math.floor(Math.random() * Math.floor(max));
 };
